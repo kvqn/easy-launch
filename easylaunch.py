@@ -9,15 +9,15 @@ import logging
 DEFAULT_CONFIG_CONTENT = """
 # Default config file for easylaunch
 
-# [example]
-# aliases = ["ex", "exa"] # [] by default
-# description = "Example command" # "" by default
-# working-directory = "$HOME" # $HOME by default
-# commands = [
-#     "echo 'Hello World!'",
-#     "echo launching an app",
-#     "echo launching another app"
-# ]
+[example]
+aliases = ["ex"] # [] by default
+description = "Example Workspace" # "" by default
+working-directory = "$HOME" # $HOME by default
+commands = [
+    "echo 'Hello World!'",
+    "echo launching an app",
+    "echo launching another app"
+]
 
 """
 
@@ -73,6 +73,27 @@ def popen(command, *args, **kwargs):
 def path_expand_all(path_str):
     return path.expanduser(path.expandvars(path_str))
 
+def find_workspace(name, key, value):
+    if key.lower() == name.lower():
+        return True
+    if "aliases" in value:
+        for alias in value["aliases"]:
+            if alias.lower() == name.lower():
+                return True
+    return False
+
+
+def load_config(file_path):
+    try:
+        with open(file_path, "rb") as config_file:
+            return tomli.load(config_file)
+    except tomli.TOMLDecodeError as e:
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.error("Error while parsing config file.")
+        else:
+            logging.error("Error while parsing config file. Use verbode flag for more info")
+        logging.debug(e)
+        exit(1)
 
 if __name__ == "__main__":
     
@@ -105,25 +126,18 @@ if __name__ == "__main__":
         if not args.workspaces:
             parser.parse_args(["--help"])
 
-        with open(args.config, 'rb') as f:
-            config = tomli.load(f)
-        
+        config = load_config(args.config)
+         
         for arg in args.workspaces: 
 
             found = False
             for workspace, values in config.items():
                 if not isinstance(values, dict):
                     continue
-                if workspace == arg:
-                    found = True
+                if find_workspace(arg, workspace, values):
                     workspace = values
-                    break
-                elif "aliases" in values:
-                    if arg in values["aliases"]:
-                        found = True
-                        workspace = values
-                        break
-            
+                    found = True
+
             if found == False:
                 logging.error(f"Workspace {arg} not found")
                 continue
@@ -145,17 +159,16 @@ if __name__ == "__main__":
                 popen(command, cwd=working_directory, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     elif args.command == "list":
-        with open(args.config, 'rb') as f:
-            config = tomli.load(f)
         
+        config = load_config(args.config)
+
         for workspace, values in config.items():
             if not isinstance(values, dict):
                 continue
-            print()
             print(workspace, end=" ")
             if "aliases" in values:
                 print(" ".join(values["aliases"]), end=" ")
-            print()
+                print()
             if "description" in values and values["description"]:
                 print(f"    {values['description']}")
             print()
