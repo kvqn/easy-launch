@@ -137,6 +137,7 @@ if __name__ == "__main__":
                 if find_workspace(arg, workspace, values):
                     workspace = values
                     found = True
+                    break
 
             if found == False:
                 logging.error(f"Workspace {arg} not found")
