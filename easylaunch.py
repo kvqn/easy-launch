@@ -1,13 +1,12 @@
 #!/bin/python
 import argparse
 import os.path as path
-from re import I
 import tomli
 import subprocess
 import logging
 
-DEFAULT_CONFIG_CONTENT = """
-# Default config file for easylaunch
+DEFAULT_CONFIG_CONTENT = \
+"""# Default config file for easylaunch
 
 [example]
 aliases = ["ex"] # [] by default
@@ -18,11 +17,10 @@ commands = [
     "echo launching an app",
     "echo launching another app"
 ]
-
 """
 
 
-parser = argparse.ArgumentParser(description='Easy Launch')
+parser = argparse.ArgumentParser(description='A simple tool to launch multiple commands at once')
 
 extra_commands = parser.add_mutually_exclusive_group(required=False)
 # todo: add title and description to commands so they appear in separate groups

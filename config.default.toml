@@ -1,10 +1,11 @@
 # Default config file for easylaunch
 
-# This is the only section needed to be setup in the global section
-[workspaces]
-
-# example = [
-#     "echo doing something",
-#     "echo doing something else",
-#     "echo doing something else again",
-# ]
+[example]
+aliases = ["ex"] # [] by default
+description = "Example Workspace" # "" by default
+working-directory = "$HOME" # $HOME by default
+commands = [
+    "echo 'Hello World!'",
+    "echo launching an app",
+    "echo launching another app"
+]
