@@ -20,7 +20,7 @@ commands = [
 """
 
 
-parser = argparse.ArgumentParser(description='A simple tool to launch multiple commands at once')
+parser = argparse.ArgumentParser(description='A simple tool to launch multiple commands at once.')
 
 extra_commands = parser.add_mutually_exclusive_group(required=False)
 # todo: add title and description to commands so they appear in separate groups
