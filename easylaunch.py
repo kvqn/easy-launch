@@ -3,61 +3,172 @@ import argparse
 import os.path as path
 import tomli
 import subprocess
+import logging
+
+DEFAULT_CONFIG_CONTENT = \
+"""# Default config file for easylaunch
+
+[example]
+aliases = ["ex"] # [] by default
+description = "Example Workspace" # "" by default
+working-directory = "$HOME" # $HOME by default
+commands = [
+    "echo 'Hello World!'",
+    "echo launching an app",
+    "echo launching another app"
+]
+"""
 
 
-parser = argparse.ArgumentParser(description='Easy Launch')
-parser.add_argument("name", help="Name of the workspace")
-parser.add_argument("--workdir", help="specify the working directory", required=False, default=path.expanduser("~/.config/easylaunch"))
+parser = argparse.ArgumentParser(description='A simple tool to launch multiple commands at once.')
+
+extra_commands = parser.add_mutually_exclusive_group(required=False)
+# todo: add title and description to commands so they appear in separate groups
+
+
+extra_commands.add_argument(
+    "--version", help="print the version",
+    action="store_const", const="version", dest="command"
+)
+extra_commands.add_argument(
+    "--list", "-l", help="list all workspaces",
+    action="store_const", const="list", dest="command"
+)
+extra_commands.add_argument(
+    "--edit-config", help="edit the config file in you default editor", 
+    action="store_const", const="edit-config", dest="command"
+)
+extra_commands.add_argument(
+    "--load-default-config", help="load the default config file",
+    action="store_const", const="load-default-config", dest="command"
+)
+extra_commands.add_argument(
+    "--launch", help="launch a workspace",
+    action="store_const", const="launch", dest="command"
+)
+
+
+parser.add_argument("--config", help="Specify the config file", required=False, default=path.expanduser("~/.config/easylaunch/config.toml"), dest="config")
+parser.add_argument("--verbose", "-v", help="Enable verbose logging", required=False, default=False, dest="verbose", action="store_true")
+parser.add_argument("workspaces", help="The workspace to launch", nargs="*")
+
+parser.set_defaults(command="launch")
+
+def run_command(command, *args, **kwargs):
+    if isinstance(command, str):
+        logging.debug(f"Running command: {command}")
+    else :
+        logging.debug(f"Running command: {' '.join(command)}")
+    subprocess.run(command, *args, **kwargs)
+
+def popen(command, *args, **kwargs):
+    if isinstance(command, str):
+        logging.debug(f"Popen command: {command}")
+    else:
+        logging.debug(f"Popen command: {' '.join(command)}")
+    subprocess.Popen(command, *args, **kwargs)
+
+def path_expand_all(path_str):
+    return path.expanduser(path.expandvars(path_str))
+
+def find_workspace(name, key, value):
+    if key.lower() == name.lower():
+        return True
+    if "aliases" in value:
+        for alias in value["aliases"]:
+            if alias.lower() == name.lower():
+                return True
+    return False
+
+
+def load_config(file_path):
+    try:
+        with open(file_path, "rb") as config_file:
+            return tomli.load(config_file)
+    except tomli.TOMLDecodeError as e:
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.error("Error while parsing config file.")
+        else:
+            logging.error("Error while parsing config file. Use verbode flag for more info")
+        logging.debug(e)
+        exit(1)
 
 if __name__ == "__main__":
+    
+    # args, remaining_args = parser.parse_known_args()
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="[ %(levelname)s ] %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="[ %(levelname)s ] %(message)s")
     
-    if not path.isdir(args.workdir):
-        print("Workspace directory does not exist")
-        exit(1)
+    if not path.isfile(args.config) and args.command != "load_default_config":
+        logging.error(f"Config file {args.config} does not exist")
         
-    CONFIG_PATH = path.join(args.workdir, "config.toml")
-    DEFAULT_CONFIG_PATH = path.join(args.workdir, "config.toml.default")
-    
-    try:
-        with open(CONFIG_PATH, 'rb') as f:
-            config = tomli.load(f)
-    except FileNotFoundError:
-        if not path.isfile(DEFAULT_CONFIG_PATH):
-            raise FileNotFoundError("Default config file not found")
+    if args.command == "version":
+        print("easylaunch 0.1.0")
         
-        subprocess.run(["cp", DEFAULT_CONFIG_PATH, CONFIG_PATH])
-        print("Default config file copied to ~/.config/easylaunch/config")
-        print("Do easylaunch-config to configure it")
-        exit(0)  
+    elif args.command == "edit-config":
+        run_command(f"$EDITOR {args.config}", shell=True)
+    
+    elif args.command == "load-default-config":
+        logging.info(f"Loading default config file at {args.config}")
+        with open(args.config, "w") as f:
+            f.write(DEFAULT_CONFIG_CONTENT) 
+    
+    elif args.command == "launch":
         
-    if not "workspaces" in config:
-        print("No workspaces defined in config")
-        exit(1)
+        # args = workspace_parser.parse_args(remaining_args, namespace=args) 
+
+        if not args.workspaces:
+            parser.parse_args(["--help"])
+
+        config = load_config(args.config)
+         
+        for arg in args.workspaces: 
+
+            found = False
+            for workspace, values in config.items():
+                if not isinstance(values, dict):
+                    continue
+                if find_workspace(arg, workspace, values):
+                    workspace = values
+                    found = True
+                    break
+
+            if found == False:
+                logging.error(f"Workspace {arg} not found")
+                continue
+            
+
+            if "working-directory" in workspace:
+                working_directory = path_expand_all(workspace["working-directory"])
+            else:
+                working_directory = path_expand_all("$HOME") 
+            
+            # print(working_directory)
+            if "commands" not in workspace:
+                logging.warning(f"No commands found for workspace {arg}")
+                continue
+            
+            logging.info("Launching workspace " + arg)
+                
+            for command in workspace["commands"]:
+                popen(command, cwd=working_directory, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    workspaces = config["workspaces"]
-    
-    if not args.name in workspaces:
-        print("Workspace not found")
-        exit(1)
+    elif args.command == "list":
         
-    workspace = workspaces[args.name]
-    
-    if not isinstance(workspace, (tuple, list)):
-        print("Workspace is not a list")
-        exit(1)
-    
-    bad_config = False
-    for command in workspace:
-        if not isinstance(command, str):
-            print("Command is not a string")
-            bad_config = True
-            break
-    
-    if bad_config:
-        exit(1)
-    
-    for command in workspace:
-        subprocess.Popen(command, shell=True)
-    
-    print("Launched workspace")
+        config = load_config(args.config)
+
+        for workspace, values in config.items():
+            if not isinstance(values, dict):
+                continue
+            print(workspace, end=" ")
+            if "aliases" in values:
+                print(" ".join(values["aliases"]), end=" ")
+                print()
+            if "description" in values and values["description"]:
+                print(f"    {values['description']}")
+            print()
+

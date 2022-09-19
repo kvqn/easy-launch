@@ -1,3 +1,4 @@
+#!/bin/python
 import argparse
 import logging
 import subprocess
@@ -10,11 +11,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='easy-launch setup')
 parser.add_argument("--workdir", help="specify the working directory", required=False, default=path.expanduser("~/.config/easylaunch"))
-parser.add_argument("--installdir", help="specify the installation directory", required=False, default=path.expanduser("~/.local/bin/"))
-parser.add_argument("--source", help="specify the source directory", required=False, default=path.dirname(path.realpath(__file__)))
-parser.add_argument("--reinstall", help="reinstall", required=False, default=False, action="store_true")
-parser.add_argument("--skip-aliases", help="skip aliases", required=False, default=False, action="store_true")
-parser.add_argument("--skip-config", help="skip config", required=False, default=False, action="store_true")
+parser.add_argument("--installdir", help="specify the installation directory where scripts will be installed", required=False, default=path.expanduser("~/.local/bin/"))
+parser.add_argument("--source", help="specify the source directory where the source code is.", required=False, default=path.dirname(path.realpath(__file__)))
+parser.add_argument("--reinstall", help="if scripts and configs already exist, replace them.", required=False, default=False, action="store_true")
+parser.add_argument("--skip-aliases", help="don't make aliases in the zshrc", required=False, default=False, action="store_true")
+parser.add_argument("--skip-config", help="don't make config files", required=False, default=False, action="store_true")
+parser.add_argument("--create-symlinks", help="create symlinks instead of copying files", required=False, default=False, action="store_true", dest="create_symlinks")
 
 def run_command(command, *args, **kwargs):
     if isinstance(command, str):
@@ -46,12 +48,10 @@ if __name__ == "__main__":
     # This is a really good way to do this.
     PATHS = {
         "source/easylaunch.py": path.join(args.source, "easylaunch.py"),
-        "source/easylaunch_config.py": path.join(args.source, "easylaunch_config.py"),
         "source/config.default.toml": path.join(args.source, "config.default.toml"),
         "workdir/config.toml": path.join(args.workdir, "config.toml"),
         "workdir/config.default.toml": path.join(args.workdir, "config.default.toml"),
         "installdir/easylaunch": path.join(args.installdir, "easylaunch"),
-        "installdir/easylaunch-config": path.join(args.installdir, "easylaunch-config"),
         "bashrc": path.expanduser("~/.bashrc"),
         "zshrc": path.expanduser("~/.zshrc")
     }
@@ -67,29 +67,19 @@ if __name__ == "__main__":
     
     if install:
         logging.info(f"Installing easylaunch to {PATHS['installdir/easylaunch']}")
-        run_command(["cp", PATHS["source/easylaunch.py"], PATHS["installdir/easylaunch"]])
+
+        if args.create_symlinks:
+            run_command(["ln", "-s", PATHS["source/easylaunch.py"], PATHS["installdir/easylaunch"]])
+        else:
+            run_command(["cp", PATHS["source/easylaunch.py"], PATHS["installdir/easylaunch"]])
+
         run_command(["chmod", "+x", PATHS["installdir/easylaunch"]])
+
         if not args.skip_aliases:
             run_command(f"echo \"alias launch='easylaunch'\" >> {PATHS['zshrc']}", shell=True)
-        # run_command(f"echo \"alias launch='easylaunch'\" >> {PATHS['bashrc']}", shell=True)
+            # run_command(f"echo \"alias launch='easylaunch'\" >> {PATHS['bashrc']}", shell=True)
     
-    install = True
-    if path.isfile(PATHS["installdir/easylaunch-config"]):
-        if args.reinstall:
-            logging.info(f"removed {PATHS['installdir/easylaunch-config']}")
-            run_command(["rm", PATHS["installdir/easylaunch-config"]])
-        else:
-            install = False
-            print("easylaunch-config already installed")
-            
-    if install:
-        logging.info(f"Installing easylaunch-config to {PATHS['installdir/easylaunch-config']}")
-        run_command(["cp", PATHS["source/easylaunch_config.py"], PATHS["installdir/easylaunch-config"]])
-        run_command(["chmod", "+x", PATHS["installdir/easylaunch-config"]])
-        if not args.skip_aliases:
-            run_command(f"echo \"alias launch-config='easylaunch-config'\" >> {PATHS['zshrc']}", shell=True)
-        # run_command(f"echo \"alias launch-config='easylaunch-config'\" >> {PATHS['bashrc']}", shell=True)
-    
+   
     if not args.skip_config:
         install = True
         if path.isfile(PATHS["workdir/config.toml"]):
