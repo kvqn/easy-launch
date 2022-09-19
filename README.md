@@ -105,8 +105,7 @@ options:
 
 By default, the installation script will add the following statement in .zshrc of the user.
 
-> alias launch='easylaunch' \
-> alias launch-config='easylaunch-config'
+> alias launch='easylaunch'
 
 to prevent this you can use the `--skip-aliases` option.
 
